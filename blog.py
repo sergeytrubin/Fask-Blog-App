@@ -2,6 +2,7 @@ from flask import Flask, render_template, request, session, \
     flash, redirect, url_for, g
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
+from functools import wraps
 
 app = Flask(__name__)
 app.config.from_object('config')
@@ -14,8 +15,22 @@ class Posts(db.Model):
     title = db.Column(db.String(), nullable=False)
     post = db.Column(db.String(), nullable=False)
 
+    def __repr__(self):
+        f'<Post {self.id} {self.post}>'
+
 
 migrate = Migrate(app, db)
+
+
+def login_required(test):
+    @wraps(test)
+    def wrap(*args, **kwargs):
+        if 'logged_in' in session:
+            return test(*args, **kwargs)
+        else:
+            flash('You need to log in first')
+            return redirect(url_for('login'))
+    return wrap
 
 
 @app.route('/', methods=['GET', 'POST'])
@@ -25,7 +40,7 @@ def login():
     if request.method == 'POST':
         if request.form['username'] != app.config['USERNAME'] or \
                 request.form['password'] != app.config['PASSWORD']:
-            error = 'Invalid Credentials. PLease try again.'
+            error = 'Invalid Credentials. Please try again.'
             status_code = 401
         else:
             session['logged_in'] = True
@@ -41,8 +56,10 @@ def logout():
 
 
 @app.route('/main')
+@login_required
 def main():
-    return render_template('main.html')
+    posts = Posts.query.order_by('id').all()
+    return render_template('main.html', data=posts)
 
 
 if __name__ == '__main__':
